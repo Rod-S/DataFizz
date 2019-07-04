@@ -2,72 +2,34 @@ const cheerio = require("cheerio");
 const site = "https://www.amazon.com";
 const fs = require("fs")
 const rp = require("request-promise");
+const {KindleBook, AudibleBook, HardcoverBook, PaperbackBook, GeneralProduct} = require("./classes.js");
+//const AudibleBook = require("./classes.js").AudibleBook;
+//const HardcoverBook = require("./classes.js").HardcoverBook;
+//const PaperbackBook = require("./classes.js").PaperbackBook;
+//const GeneralProduct = require("./classes.js").GeneralProduct;
 
 //start message
 console.log('Executing crawler.js');
 
 //Define object classes - 4 main product types within Amazon book category
-class KindleBook {
-  constructor(name, listPrice, description, imageUrls) {
-    this.name = name;
-    this.listPrice = listPrice;
-    this.description = description;
-    this.imageUrls = imageUrls;
-  }
-}
-
-class AudibleBook {
-  constructor(name, listPrice, description, imageUrls) {
-    this.name = name;
-    this.listPrice = listPrice;
-    this.description = description;
-    this.imageUrls = imageUrls;
-  }
-}
-
-class HardcoverBook {
-  constructor(name, listPrice, description, imageUrls) {
-    this.name = name;
-    this.listPrice = listPrice;
-    this.description = description;
-    this.imageUrls = imageUrls;
-  }
-}
-
-class PaperbackBook {
-  constructor(name, listPrice, description, imageUrls) {
-    this.name = name;
-    this.listPrice = listPrice;
-    this.description = description;
-    this.imageUrls = imageUrls;
-  }
-}
-
-class GeneralProduct {
-  constructor(name, listPrice, description, productDimensions, imageUrls, weight) {
-    this.name = name;
-    this.listPrice = listPrice;
-    this.description = description;
-    this.productDimensions = productDimensions;
-    this.imageUrls = imageUrls;
-    this.weight = weight;
-  }
-}
 
 //initial rp options
 let options = {
   method: 'GET',
   uri: site + "/b/ref=usbk_surl_books/?node=283155",
   gzip: true,
+  decodeEntities: true,
   transform: function (body) {
         return cheerio.load(body);
     }
 }
 
 //Begin scraping https://www.amazon.com/b/ref=usbk_surl_books/?node=283155, load html through cheerio
+
+
 rp(options).then(
    function($) {
-    var products = [];
+    var productUrls = [];
     var kindleBooks = [];
     var audibleBooks = [];
     var hardcoverBooks = [];
@@ -76,17 +38,18 @@ rp(options).then(
     $('.a-link-normal').each(function(i, elem){
       var hrefSubstring = $(elem).attr('href').split('/');
       if ( (hrefSubstring[1] + '/' + hrefSubstring[2]) == 'gp/product') {
-          products.push(site + "/" + hrefSubstring[1] + '/' + hrefSubstring[2] + '/' + hrefSubstring[3])
+          productUrls.push(site + "/" + hrefSubstring[1] + '/' + hrefSubstring[2] + '/' + hrefSubstring[3])
       }
     })
-    console.log(products);
+    console.log(productUrls);
     //iterate over each product in products
-    for (let i=0;i < products.length; i++) {
+    for (let i=0;i < productUrls.length; i++) {
       //options.uri = products[i];
       options = {
         method: 'GET',
-        uri: products[i],
+        uri: productUrls[i],
         gzip: true,
+        decodeEntities: true,
         transform: function (body) {
           return cheerio.load(body);
         }
@@ -103,7 +66,7 @@ rp(options).then(
               $('#ebooksImgBlkFront').attr('src')
             )
             //if audibleBook, create audible object
-          } else if ($('#title').find("Audible")) {
+          } if ($('#title').find("Audible")) {
             var audibleBook = new AudibleBook(
               $('#productTitle').text().trim(),
               $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
@@ -112,7 +75,7 @@ rp(options).then(
               //Buffer.from($('.feature').find('img').attr('src').replace('\n|data:image/jpeg;base64,|\n\n\n\n\n\n\n\n', ''), 'base64').toString('utf8')
             )
             //if hardcoverBook, create hardcover object
-          } else if ($('#productTitle').find("span:contains('Hardcover')")) {
+          } if ($('#productTitle').find("span:contains('Hardcover')")) {
             var hardcoverBook = new HardcoverBook(
               $('#productTitle').text().trim(),
               $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
@@ -121,7 +84,7 @@ rp(options).then(
               //imgUrl not displaying properly
               //Buffer.from($('#img-canvas>img').attr('src').replace('\ndata:image/jpeg;base64,', ''), 'base64').toString('utf8')
             )
-          } else if ($('#productTitle').find("span:contains('Paperback')")) {
+          } if ($('#productTitle').find("span:contains('Paperback')")) {
             var paperbackBook = new PaperbackBook(
               $('#productTitle').text().trim(),
               $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
@@ -131,41 +94,8 @@ rp(options).then(
               //Buffer.from($('#img-canvas>img').attr('src').replace('\ndata:image/jpeg;base64,', ''), 'base64').toString('utf8')
             )
           }
-
-          /*
-          if ($('#ebooksProductTitle').length) {
-            var kindleBook = new KindleBook(
-              $('#ebooksProductTitle').text().trim(),
-              $('.kindlePriceLabel').next().text().trim().split(' ')[0].replace('$', ''),
-              //description selector broken
-              $('#iframeContent').text(),
-              $('#ebooks-img-canvas>img').attr('src')
-            )
-            //if audibleBook, create audible object
-          } else if ($('#productTitle').length) {
-            var audibleBook = new AudibleBook(
-              $('#productTitle').text().trim(),
-              $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
-              //description selector broken
-              $('#iframeContent').text(),
-              $('#main-image').attr('src')
-            )
-            //if hardcoverBook, create hardcover object
-          } if ($('#dp.book').length) {
-            var hardcoverBook = new HardcoverBook(
-              $('#productTitle').text().trim(),
-              $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
-              //description selector broken
-              $('#iframeContent').text(),
-              //imgUrl not displaying properly
-              document.atob($('#img-canvas>img').attr('src'))
-
-            )
-          }
-          */
-
           if(kindleBook) {
-          console.log(kindleBook);
+            console.log(kindleBook);
           }
           if (audibleBook) {
             console.log(audibleBook);
@@ -178,4 +108,37 @@ rp(options).then(
           }
       })
     }
+
 });
+
+/*
+if ($('#ebooksProductTitle').length) {
+  var kindleBook = new KindleBook(
+    $('#ebooksProductTitle').text().trim(),
+    $('.kindlePriceLabel').next().text().trim().split(' ')[0].replace('$', ''),
+    //description selector broken
+    $('#iframeContent').text(),
+    $('#ebooks-img-canvas>img').attr('src')
+  )
+  //if audibleBook, create audible object
+} else if ($('#productTitle').length) {
+  var audibleBook = new AudibleBook(
+    $('#productTitle').text().trim(),
+    $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
+    //description selector broken
+    $('#iframeContent').text(),
+    $('#main-image').attr('src')
+  )
+  //if hardcoverBook, create hardcover object
+} if ($('#dp.book').length) {
+  var hardcoverBook = new HardcoverBook(
+    $('#productTitle').text().trim(),
+    $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
+    //description selector broken
+    $('#iframeContent').text(),
+    //imgUrl not displaying properly
+    document.atob($('#img-canvas>img').attr('src'))
+
+  )
+}
+*/
