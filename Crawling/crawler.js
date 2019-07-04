@@ -45,6 +45,16 @@ class SoftcoverBook {
   }
 }
 
+class GeneralProduct {
+  constructor(name, listPrice, description, productDimensions, imageUrls, weight) {
+    this.name = name;
+    this.listPrice = listPrice;
+    this.description = description;
+    this.productDimensions = productDimensions;
+    this.imageUrls = imageUrls;
+    this.weight = weight;
+  }
+}
 
 //initial rp options
 let options = {
@@ -90,6 +100,7 @@ rp(options).then(
             var kindleBook = new KindleBook(
               $('#ebooksProductTitle').text().trim(),
               $('.kindlePriceLabel').next().text().trim().split(' ')[0].replace('$', ''),
+              //description selector broken
               $('#iframeContent').text(),
               $('#ebooks-img-canvas>img').attr('src')
             )
@@ -98,21 +109,26 @@ rp(options).then(
             var audibleBook = new AudibleBook(
               $('#productTitle').text().trim(),
               $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
+              //description selector broken
               $('#iframeContent').text(),
               $('#main-image').attr('src')
             )
-          } if ($('#productTitle').next().text().includes('Hardcover')) {
+            //if hardcoverBook, create hardcover object
+          } if ($('#dp.book').length) {
             var hardcoverBook = new HardcoverBook(
               $('#productTitle').text().trim(),
               $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
+              //description selector broken
               $('#iframeContent').text(),
-              $('#img-canvas>img').attr('src')
+              //imgUrl not displaying properly
+              document.atob($('#img-canvas>img').attr('src'))
+
             )
           }
           if(kindleBook) {
           console.log(kindleBook);
         } if (audibleBook) {
-          //console.log(audibleBook);
+          console.log(audibleBook);
         } if (hardcoverBook) {
           console.log(hardcoverBook);
         }
