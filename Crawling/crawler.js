@@ -34,14 +34,12 @@ class HardcoverBook {
   }
 }
 
-class SoftcoverBook {
-  constructor(name, listPrice, description, productDimensions, imageUrls, weight) {
+class PaperbackBook {
+  constructor(name, listPrice, description, imageUrls) {
     this.name = name;
     this.listPrice = listPrice;
     this.description = description;
-    this.productDimensions = productDimensions;
     this.imageUrls = imageUrls;
-    this.weight = weight;
   }
 }
 
@@ -90,12 +88,51 @@ rp(options).then(
         uri: products[i],
         gzip: true,
         transform: function (body) {
-              return cheerio.load(body);
+          return cheerio.load(body);
         }
       }
       rp(options).then(
         function($) {
           //if kindleBook, create kindle object
+          if ($('#ebooksProductTitle').next().has('Kindle')) {
+            var kindleBook = new KindleBook(
+              $('#ebooksProductTitle').text().trim(),
+              $('.kindlePriceLabel').next().text().trim().split(' ')[0].replace('$', ''),
+              //description selector broken
+              $('#iframeContent').text(),
+              $('#ebooksImgBlkFront').attr('src')
+            )
+            //if audibleBook, create audible object
+          } else if ($('#title').find("Audible")) {
+            var audibleBook = new AudibleBook(
+              $('#productTitle').text().trim(),
+              $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
+              //description selector broken
+              $('#iframeContent').text(),
+              //Buffer.from($('.feature').find('img').attr('src').replace('\n|data:image/jpeg;base64,|\n\n\n\n\n\n\n\n', ''), 'base64').toString('utf8')
+            )
+            //if hardcoverBook, create hardcover object
+          } else if ($('#productTitle').find("span:contains('Hardcover')")) {
+            var hardcoverBook = new HardcoverBook(
+              $('#productTitle').text().trim(),
+              $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
+              //description selector broken
+              $('#iframeContent').text(),
+              //imgUrl not displaying properly
+              //Buffer.from($('#img-canvas>img').attr('src').replace('\ndata:image/jpeg;base64,', ''), 'base64').toString('utf8')
+            )
+          } else if ($('#productTitle').find("span:contains('Paperback')")) {
+            var paperbackBook = new PaperbackBook(
+              $('#productTitle').text().trim(),
+              $('.a-color-price').text().trim().split(' ')[0].replace('$', ''),
+              //description selector broken
+              $('#iframeContent').text(),
+              //imgUrl not displaying properly
+              //Buffer.from($('#img-canvas>img').attr('src').replace('\ndata:image/jpeg;base64,', ''), 'base64').toString('utf8')
+            )
+          }
+
+          /*
           if ($('#ebooksProductTitle').length) {
             var kindleBook = new KindleBook(
               $('#ebooksProductTitle').text().trim(),
@@ -125,13 +162,20 @@ rp(options).then(
 
             )
           }
+          */
+
           if(kindleBook) {
           console.log(kindleBook);
-        } if (audibleBook) {
-          console.log(audibleBook);
-        } if (hardcoverBook) {
-          console.log(hardcoverBook);
-        }
+          }
+          if (audibleBook) {
+            console.log(audibleBook);
+          }
+          if (hardcoverBook) {
+            console.log(hardcoverBook);
+          }
+          if (paperbackBook) {
+            console.log(paperbackBook);
+          }
       })
     }
 });
