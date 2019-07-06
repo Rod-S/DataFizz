@@ -1,7 +1,7 @@
 //import dependencies/modules
+const fs = require("fs");
 const cheerio = require("cheerio");
 const rp = require("request-promise");
-const request = require('request');
 const {KindleBook, AudibleBook, HardcoverBook, PaperbackBook, GeneralProduct} = require("./classes.js");
 
 //declare arrays
@@ -11,11 +11,12 @@ var audibleBooks = [];
 var hardcoverBooks = [];
 var paperbackBooks = [];
 var totalProducts = [];
+var jsonData = {};
 
 //crawler entry point domain
 const site = "https://www.amazon.com";
 
-//initial rp options
+//initial request options
 let options = {
   method: 'GET',
   uri: site,
@@ -24,6 +25,22 @@ let options = {
   transform: function (body) {
         return cheerio.load(body);
     }
+}
+
+//create data folder if it does not exist
+if (!fs.existsSync('./data')) {
+  fs.mkdirSync('./data');
+  console.log('./data subdirectory successfully created.')
+}
+
+const formatDate = () => {
+  var date = new Date(),
+      month = '' + (date.getMonth() + 1),
+      day = '' + date.getDate(),
+      year = date.getFullYear();
+  if (month.length < 2) month = '0' + month;
+  if (day.length < 2) day = '0' + day;
+  return [year, month, day].join('-');
 }
 
 //npm start message
@@ -92,7 +109,7 @@ rp(options).then(
                   //Buffer.from($('#img-canvas>img').attr('src').replace('\ndata:image/jpeg;base64,', ''), 'base64').toString('utf8')
                 )
               }
-              if(kindleBook) {
+              if (kindleBook) {
                 //console.log(kindleBook);
                 kindleBooks.push(kindleBook);
                 totalProducts.push(kindleBook);
@@ -111,7 +128,13 @@ rp(options).then(
               }
             }).then((result)=> {
               if (totalProducts.length == productUrls.length) {
-                console.log(totalProducts);
+                const jsonFileName = './data/' + formatDate() + '.json';
+                const stream = fs.createWriteStream((jsonFileName));
+                Object.assign(jsonData, totalProducts);
+                jsonData = JSON.stringify(jsonData);
+                //JSON.parse(jsonData);
+                console.log(jsonData);
+                stream.write(jsonData, 'utf8');
                 console.log('Completed Crawl.');
               }
             })
