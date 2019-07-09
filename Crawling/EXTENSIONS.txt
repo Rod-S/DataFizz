@@ -1,0 +1,26 @@
+Once your solution is completed please add an EXTENSIONS.txt file to your solution
+that notes how your application could be extended to handle the following:
+
+1. Domains beyond Amazon.com
+2. Products beyond just simply books.
+
+1.
+  -This crawling application can be extended to domains beyond Amazon.com by
+    changing the 'domain' and 'path' variables declared at the beginning.
+  -Additional class constructors along with the respective selectors for each
+    object/data point would need to be created.
+  -Depending on the web domain, if HTML cannot be retrieved without authentication
+    or if the domain has anti-scraping measures in place, headers can be included
+    in the request options along with proxy server connections.
+2.
+  -The application partially supports other objects searchable through amazon.
+    For the sake of clarity, not all selectors for "other" products were included,
+    though if the path variable is changed from '/books' to '/electronics',
+    name data and price scraped from the electronics route is displayed in the JSON file.
+  -Though multiple classes were declared for each of the different types of book media,
+    it may be simpler to declare fewer objects but with multiple selector conditions to
+    create an object with. For instance, the 'Other' Class in the application had
+    the OR || operator to choose between the 2 different selector options from books
+    and electronics
+    -The choice would depend upon the situation and how many types of product options
+    are within each category type.

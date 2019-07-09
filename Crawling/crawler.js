@@ -2,19 +2,24 @@
 const fs = require("fs");
 const cheerio = require("cheerio");
 const rp = require("request-promise");
-const {KindleBook, AudibleBook, HardcoverBook, PaperbackBook, NoCategory} = require("./classes.js");
+const {KindleBook, AudibleBook, HardcoverBook, PaperbackBook, Other} = require("./classes.js");
+const {formatDate, objectLength} = require('./functions.js')
 
 //declare arrays
 var productURLs = [];
 var totalProducts = [];
 
 //crawler entry point domain
-const site = "https://www.amazon.com";
+const domain = "https://www.amazon.com";
+
+//resource to search
+//try replacing /books with /electronics for partial results
+const path = '/books';
 
 //initial request options
 let options = {
   method: 'GET',
-  uri: site,
+  uri: domain,
   gzip: true,
   decodeEntities: true,
   transform: function (body) {
@@ -28,26 +33,33 @@ if (!fs.existsSync('./data')) {
   console.log('./data subdirectory successfully created.')
 }
 
-//date format for JSON file
-const formatDate = () => {
-  var date = new Date(),
-      month = '' + (date.getMonth() + 1),
-      day = '' + date.getDate(),
-      year = date.getFullYear();
-  if (month.length < 2) month = '0' + month;
-  if (day.length < 2) day = '0' + day;
-  return [year, month, day].join('-');
+//JSON file creation, convert product data array into object collection and write to JSON file
+const createJSON = () => {
+  var nonEmptyProducts=[];
+  for (let i=0; i< totalProducts.length; i++) {
+    if (totalProducts[i].name != '' || totalProducts[i].description != '') {
+      nonEmptyProducts.push(totalProducts[i])
+    }
+}
+  const jsonFileName = `./data/${formatDate()}.json`;
+  const stream = fs.createWriteStream((jsonFileName));
+  totalObjectData = Object.assign({}, nonEmptyProducts);
+  for (var i = 0; i < objectLength(totalObjectData); i++) {
+    totalObjectData[i].id = i;
+  }
+  allObjectsJSON = JSON.stringify(totalObjectData);
+  stream.write(allObjectsJSON);
+  console.log('Data successfully written to JSON file.');
 }
 
-//Find total number of objects in object collection
-function ObjectLength( object ) {
-    var length = 0;
-    for( var key in object ) {
-        if( object.hasOwnProperty(key) ) {
-            ++length;
-        }
-    }
-    return length;
+//Display Error log and create Error file on Errors
+const errorMsg = (err) => {
+  if (err) {
+    let error = `'There was an error! Error Name: ${err.name}, Error Message: ${err.message}`;
+    console.log(`Error Name: ${err.name}, Error Message: ${err.message}`);
+    const errorFile = fs.createWriteStream("scraper-error.log");
+    errorFile.write('[' + new Date() + ']' + ' <' + error + '>');
+  }
 }
 
 //npm start message
@@ -56,123 +68,141 @@ console.log('Executing crawler.js');
 //Begin scraping https://www.amazon.com/
 rp(options).then(
   function($) {
-    console.log("Crawling https://www.amazon.com")
-    booksURL = '/books';
-    options.uri = site + booksURL;
-    //navigate to books category https://www.amazon.com/books
+    console.log("Entry point: 'https://www.amazon.com'");
+    options.uri = domain + path;
+
+    //navigate to category path ie) https://www.amazon.com/books
     rp(options).then(
        function($) {
-         console.log("Crawling /books route.")
+         console.log(`Crawling '${path}' route.`)
+
         //push all product urls on page into products array
         $('.a-link-normal').each(function(i, elem){
           var hrefSubstring = $(elem).attr('href').split('/');
           if ((hrefSubstring[1] + '/' + hrefSubstring[2]) == 'gp/product') {
+            //filter out audible page which shares same gp/(product) path as other book products
             if (hrefSubstring[3] != "B00NB86OYE") {
-              productURLs.push(site + "/" + hrefSubstring[1] + '/' + hrefSubstring[2] + '/' + hrefSubstring[3])
+              productURLs.push(domain + "/" + hrefSubstring[1] + '/' + hrefSubstring[2] + '/' + hrefSubstring[3])
             }
           }
         })
-        console.log(productURLs);
         console.log('Processing URLs...Please wait.')
+
         //iterate over each productURL in productURLs array
         for (let productURL of productURLs) {
           options.uri = productURL
-          //retrieve within individual book pages
+
+          //retrieve product details within each book product page
           rp(options).then(
             function($) {
+
+              //array and function to push multiple images into for each object
+              var imageURL = [];
+              var getImgURL = () => {
+                if ($('#main-image').attr('src')) {
+                  imageURL.push($('#main-image').attr('src'))
+                }
+                if ($('#ebooksImgBlkFront').attr('src')) {
+                  imageURL.push($('#ebooksImgBlkFront').attr('src'))
+                }
+                $('.a-spacing-micro > img').each(function(i, elem) {
+                  if ($(elem) != undefined) {
+                    imageURL.push($(elem).attr('src'));
+                  }
+                })
+                }
+                getImgURL();
+
+
               //if Kindle Book, create kindleBook object
               if ($('.a-button-selected > span:nth-child(1):contains(Kindle)').text().trim().length) {
                 var kindleBook = new KindleBook(
                   null,
                   $('#ebooksProductTitle').text().trim(),
                   parseFloat($('.kindlePriceLabel').next().text().trim().split(' ')[0].replace('$', '')),
-                  //description selector broken
-                  $('#iframeContent').text(),
-                  $('#ebooksImgBlkFront').attr('src'),
+                  $('#bookDescription_feature_div').text().replace(/<\/?[^>]+(>|$)/g, "").replace('/\s+/gS', '').replace('Read more', '').replace('Read less', '').trim(),
+                  imageURL.push($('#ebooksImgBlkFront').attr('src')),
                   productURL
                 )
+                kindleBook['imageURLs'].push(imageURL);
+                kindleBook['imageURLs'].shift([0][0]);
+                kindleBook['type'] = 'kindle_book';
+                totalProducts.push(kindleBook);
+
                 //if Audible Book, create audibleBook object
               } if ($('#title > span:contains(Audible Audiobook)').text().trim().length) {
                   var audibleBook = new AudibleBook(
                     null,
                     $('#productTitle').text().trim(),
                     parseFloat($('#audible_buybox_accordion > div:nth-child(6) > div > div.a-accordion-row-a11y > a > h5 > div > div.a-column.a-span4.a-text-right.a-span-last > span').text().trim().split(' ')[0].replace('$', '')),
-                    $('#iframeContent').text(),
+                    $('#bookDescription_feature_div').text().replace(/<\/?[^>]+(>|$)/g, "").replace('/\s+/gS', '').replace('Read more', '').replace('Read less', '').trim(),
                     $('#main-image').attr('src'),
                     productURL
                   )
+                  audibleBook['imageURLs'].push(imageURL);
+                  audibleBook['imageURLs'].shift([0][0]);
+                  audibleBook['type'] = 'audible_book';
+                  totalProducts.push(audibleBook);
+
                 //if Hardcover Book, create hardcoverBook object
               } if ($('#title > span:contains(Hardcover)').text().trim() == 'Hardcover') {
                   var hardcoverBook = new HardcoverBook(
                     null,
                     $('#productTitle').text().trim(),
                     parseFloat($('span.a-size-medium.a-color-price.offer-price.a-text-normal').text().trim().split(' ')[0].replace('$', '')),
-                    $('#iframeContent').text(),
-                    $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Dimensions:)").text().trim().replace('Product Dimensions: \n    \n    ', '').replace('\n', ''),
+                    $('#bookDescription_feature_div').text().trim().replace(/<\/?[^>]+(>|$)/g, "").replace('/\s+/gS', '').replace('Read more', '').replace('Read less', '').trim(),
+                    $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Dimensions:)").text().replace('Product Dimensions: ', '').replace('/\s+/gS', '').trim(),
                     $('.a-spacing-micro > img').attr('src'),
-                    $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Shipping Weight:)").text().trim().replace('Shipping Weight: ', '').replace(' (View shipping rates and policies)', ''),
+                    $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Shipping Weight:)").text().replace('Shipping Weight: ', '').replace(' (View shipping rates and policies)', '').trim(),
                     productURL
                   )
+                  hardcoverBook['imageURLs'].push(imageURL);
+                  hardcoverBook['imageURLs'].shift([0][0]);
+                  hardcoverBook['type'] = 'hardcover_book';
+                  totalProducts.push(hardcoverBook);
+
                 //if Paperback Book, create paperbackBook object
               } if ($('#title > span:contains(Paperback)').text().trim() == 'Paperback') {
                 var paperbackBook = new PaperbackBook(
                   null,
                   $('#productTitle').text().trim(),
                   parseFloat($('#buyNewSection > h5 > div > div.a-column.a-span8.a-text-right.a-span-last > div > span.a-size-medium.a-color-price.offer-price.a-text-normal').text().trim().split(' ')[0].replace('$', '')),
-                  $('#iframeContent').text(),
-                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Dimensions:)").text().trim().replace('Product Dimensions: \n    \n    ', '').replace('\n', ''),
+                  $('#bookDescription_feature_div').text().replace(/<\/?[^>]+(>|$)/g, "").replace('/\s+/gS', '').replace('Read more', '').replace('Read less', '').trim(),
+                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Dimensions:)").text().replace('Product Dimensions: ', '').replace('/\s+/gS', '').trim(),
                   $('.a-spacing-micro > img').attr('src'),
-                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Shipping Weight:)").text().trim().replace('Shipping Weight: ', '').replace(' (View shipping rates and policies)', ''),
+                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Shipping Weight:)").text().replace('Shipping Weight: ', '').replace(' (View shipping rates and policies)', '').trim(),
                   productURL
                 )
-              }
-              //push to arrays
-              if (kindleBook) {
-                kindleBook['type'] = 'kindle_book';
-                kindleBooks.push(kindleBook);
-                totalProducts.push(kindleBook);
-              } if (audibleBook) {
-                audibleBook['type'] = 'audible_book';
-                audibleBooks.push(audibleBook);
-                totalProducts.push(audibleBook);
-              } if (hardcoverBook) {
-                hardcoverBook['type'] = 'hardcover_book';
-                hardcoverBooks.push(hardcoverBook);
-                totalProducts.push(hardcoverBook);
-              } if (paperbackBook) {
+                paperbackBook['imageURLs'].push(imageURL);
+                paperbackBook['imageURLs'].shift([0][0]);
                 paperbackBook['type'] = 'paperback_book';
-                paperbackBooks.push(paperbackBook);
                 totalProducts.push(paperbackBook);
+
+                //if not any of 4 main book categories
               } if (!kindleBook && !audibleBook && !hardcoverBook && !paperbackBook) {
-                noCategory = new NoCategory(
+                var other = new Other(
                   null,
                   $('#productTitle').text().trim(),
-                  parseFloat($('span.a-size-medium.a-color-price.offer-price.a-text-normal').text().trim().split(' ')[0].replace('$', '')),
-                  'description',
-                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Dimensions:)").text().trim().replace('Product Dimensions: \n    \n    ', '').replace('\n', ''),
+                  parseFloat($('span.a-size-medium.a-color-price.offer-price.a-text-normal').text().trim().split(' ')[0].replace('$', '')) || parseFloat($("#priceblock_ourprice").text().trim().replace('$', '')),
+                  $('#bookDescription_feature_div').text().replace(/<\/?[^>]+(>|$)/g, "").replace('/\s+/gS', '').replace('Read more', '').replace('Read less', '').trim(),
+                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Dimensions:)").text().trim().replace('Product Dimensions: ', '').replace(/\n/g, '').replace('Package Dimensions: ', '').replace('\n', '').trim(),
                   $('.a-spacing-micro > img').attr('src'),
-                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Shipping Weight:)").text().trim().replace('Shipping Weight: ', '').replace(' (View shipping rates and policies)', ''),
+                  $("#productDetailsTable > tbody > tr > td > div > ul > li:contains(Shipping Weight:)").text().trim().replace('Shipping Weight: ', '').replace(' (View shipping rates and policies)', '').replace('Package Dimensions:', ''),
                   productURL
                 )
-                noCategory['type'] = $('#title > span:nth-child(2)').text() || 'other';
-                totalProducts.push(noCategory);
+                other['imageURLs'].push(imageURL);
+                other['imageURLs'].shift([0][0]);
+                other['type'] = $('#title > span:nth-child(2)').text() || 'other';
+                totalProducts.push(other);
               }
             }
           ).then((result)=> {
               if (totalProducts.length == productURLs.length) {
-                const jsonFileName = `./data/${formatDate()}.json`;
-                const stream = fs.createWriteStream((jsonFileName));
-                totalBooksData = Object.assign({}, totalProducts);
-                for (var i = 0; i < ObjectLength(totalBooksData); i++) {
-                  totalBooksData[i].id = i;
-                }
-                allBooksJSON = JSON.stringify(totalBooksData);
-                stream.write(allBooksJSON);
-                console.log('Data successfully written to JSON file.');
+                //create JSON file once all product links have been iterated through
+                createJSON();
               }
-            })
-
+            }).catch((err) => {errorMsg(err)})
         }
-    })
+    }).catch((err) => {errorMsg(err)})
   }
-)
+).catch((err) => {errorMsg(err);})
