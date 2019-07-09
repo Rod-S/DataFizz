@@ -6,7 +6,14 @@ CLI -
 
 "$~ npm install" -install application dependencies
 
-"$~ npm start" -run scraper.js application
+"$~ npm start" -run crawler.js application
+
+
+
+
+
+
+
 
 _______________________________________________
 
