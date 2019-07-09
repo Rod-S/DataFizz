@@ -5,13 +5,17 @@
   "main": "crawler.js",
   "scripts": {
     "start": "node crawler.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha main_test.js"
   },
   "author": "Rod-S",
   "license": "ISC",
   "dependencies": {
+    "chai": "^4.2.0",
     "cheerio": "^1.0.0-rc.3",
     "request": "^2.88.0",
     "request-promise": "^4.2.4"
+  },
+  "devDependencies": {
+    "mocha": "^6.1.4"
   }
 }
